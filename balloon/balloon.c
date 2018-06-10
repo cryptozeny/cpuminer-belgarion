@@ -130,6 +130,24 @@ uint64_t bytes_to_littleend_uint64 (const uint8_t *bytes, size_t n_bytes) {
   }
   return out;
 }
+static inline void bytes_to_littleend8_uint64 (const uint8_t *bytes, uint64_t *out) {
+	*out <<= 8;
+	*out |= *(bytes + 7);
+	*out <<= 8;
+	*out |= *(bytes + 6);
+	*out <<= 8;
+	*out |= *(bytes + 5);
+	*out <<= 8;
+	*out |= *(bytes + 4);
+	*out <<= 8;
+	*out |= *(bytes + 3);
+	*out <<= 8;
+	*out |= *(bytes + 2);
+	*out <<= 8;
+	*out |= *(bytes + 1);
+	*out <<= 8;
+	*out |= *(bytes + 0);
+}
 
 void * block_index (const struct hash_state *s, size_t i) {
   return s->buffer + (BLOCK_SIZE * i);
@@ -179,32 +197,64 @@ int hash_state_fill (struct hash_state *s, const uint8_t salt[SALT_LEN], const u
   expand (&s->counter, s->buffer, s->n_blocks);
 }
 
+uint8_t prebuf[409600];
+uint64_t prebuf_le[409600 / 8];
+uint8_t prebuf_filled = 0;
 int hash_state_mix (struct hash_state *s, int32_t mixrounds) {
-  int32_t rounds;
-  uint8_t buf[8];
-  uint64_t neighbor;
-  for (rounds=0; rounds < mixrounds; rounds++) {
-   for (size_t i = 0; i < s->n_blocks; i++) {
-    uint8_t *cur_block = block_index (s, i);
-    const size_t n_blocks_to_hash = 3;
-    const uint8_t *blocks[2+n_blocks_to_hash];
-    const uint8_t *prev_block = i ? cur_block - BLOCK_SIZE : block_last (s);
-    blocks[0] = prev_block;
-    blocks[1] = cur_block;
-    for (size_t n = 2; n < 2+n_blocks_to_hash; n++) {
-     bitstream_fill_buffer (&s->bstream, buf, 8);
-     neighbor = bytes_to_littleend_uint64 (buf, 8);
-     blocks[n] = block_index (s, neighbor % s->n_blocks);
-    }
-    compress (&s->counter, cur_block, blocks, 2+n_blocks_to_hash);
-   }
-   s->has_mixed = true;
-  }
+	if (!prebuf_filled) {
+		bitstream_fill_buffer (&s->bstream, prebuf, 409600);
+		prebuf_filled = 1;
+		uint8_t *buf = prebuf;
+		uint64_t *lebuf = prebuf_le;
+		for (int i = 0; i < 409600; i+=8) {
+			bytes_to_littleend8_uint64(buf, lebuf);
+			*lebuf %= 4096;
+			lebuf++;
+			buf += 8;
+		}
+	}
+	uint64_t *buf = prebuf_le;
+	uint8_t *sbuf = s->buffer;
+
+	uint64_t neighbor;
+	int32_t n_blocks = s->n_blocks;
+	uint8_t *last_block = (sbuf + (BLOCK_SIZE*(n_blocks-1)));
+	for (int32_t rounds=0; rounds < mixrounds; rounds++) {
+		uint8_t *cur_block = sbuf;
+		const uint8_t *blocks[5];
+		uint8_t **block = blocks;
+		{ // i = 0
+			*(block++) = last_block;
+			*(block++) = cur_block;
+			*(block++) = (sbuf + (BLOCK_SIZE * (*(buf++))));
+			*(block++) = (sbuf + (BLOCK_SIZE * (*(buf++))));
+			*(block++) = (sbuf + (BLOCK_SIZE * (*(buf++))));
+
+			compress (&s->counter, cur_block, blocks, 5);
+			cur_block += BLOCK_SIZE;
+		}
+		for (size_t i = 1; i < n_blocks; i++) {
+			block = blocks;
+			*(block++) = cur_block - BLOCK_SIZE;
+			*(block++) = cur_block;
+			*(block++) = (sbuf + (BLOCK_SIZE * (*(buf++))));
+			*(block++) = (sbuf + (BLOCK_SIZE * (*(buf++))));
+			*(block++) = (sbuf + (BLOCK_SIZE * (*(buf++))));
+
+			compress (&s->counter, cur_block, blocks, 5);
+			cur_block += BLOCK_SIZE;
+		}
+		s->has_mixed = true;
+	}
 }
 
 int hash_state_extract (const struct hash_state *s, uint8_t out[BLOCK_SIZE]) {
   uint8_t *b = block_last (s);
   memcpy ((char *)out, (const char *)b, BLOCK_SIZE);
+}
+
+void balloon_reset() {
+	prebuf_filled = 0;
 }
 
 #ifdef __cplusplus
