@@ -78,7 +78,7 @@ BEGIN
         BEGIN
             VALUE "FileVersion", "1.3.4"
             VALUE "LegalCopyright", "Copyright (C) 2018"
-            VALUE "ProductName", "cpuminer-multi"
+            VALUE "ProductName", "cpuminer-multi-bel"
             VALUE "ProductVersion", "1.3.4"
         END
     END
