@@ -19,7 +19,8 @@ static void balloon_init (struct balloon_options *opts, int64_t s_cost, int32_t 
 }
 
 void balloon_128 (unsigned char *input, unsigned char *output) {
-  balloon (input, output, 80, 128, 4);
+  // balloon (input, output, 80, 128, 4);
+  balloon (input, output, 80, 128, 1);
 }
 
 void balloon_hash (unsigned char *input, unsigned char *output, int64_t s_cost, int32_t t_cost) {
@@ -113,7 +114,7 @@ int compress (uint64_t *counter, uint8_t *out, const uint8_t *blocks[], size_t b
 int expand (uint64_t *counter, uint8_t *buf, size_t blocks_in_buf) {
   const uint8_t *blocks[1] = { buf };
   uint8_t *cur = buf + BLOCK_SIZE;
-  for (size_t i = 1; i < blocks_in_buf; i++) { 
+  for (size_t i = 1; i < blocks_in_buf; i++) {
     compress (counter, cur, blocks, 1);
     blocks[0] += BLOCK_SIZE;
     cur += BLOCK_SIZE;
@@ -121,7 +122,7 @@ int expand (uint64_t *counter, uint8_t *buf, size_t blocks_in_buf) {
 }
 
 uint64_t bytes_to_littleend_uint64 (const uint8_t *bytes, size_t n_bytes) {
-  if (n_bytes > 8) 
+  if (n_bytes > 8)
     n_bytes = 8;
   uint64_t out = 0;
   for (int i = n_bytes-1; i >= 0; i--) {
@@ -197,22 +198,54 @@ int hash_state_fill (struct hash_state *s, const uint8_t salt[SALT_LEN], const u
   expand (&s->counter, s->buffer, s->n_blocks);
 }
 
-uint8_t prebuf[409600];
-uint64_t prebuf_le[409600 / 8];
-uint8_t prebuf_filled = 0;
-int hash_state_mix (struct hash_state *s, int32_t mixrounds) {
-	if (!prebuf_filled) {
-		bitstream_fill_buffer (&s->bstream, prebuf, 409600);
-		prebuf_filled = 1;
-		uint8_t *buf = prebuf;
-		uint64_t *lebuf = prebuf_le;
-		for (int i = 0; i < 409600; i+=8) {
-			bytes_to_littleend8_uint64(buf, lebuf);
-			*lebuf %= 4096;
-			lebuf++;
-			buf += 8;
-		}
-	}
+// uint8_t prebuf[409600];
+// uint64_t prebuf_le[409600 / 8];
+// uint8_t prebuf_filled = 0;
+// int hash_state_mix (struct hash_state *s, int32_t mixrounds) {
+// 	if (!prebuf_filled) {
+// 		bitstream_fill_buffer (&s->bstream, prebuf, 409600);
+// 		prebuf_filled = 1;
+// 		uint8_t *buf = prebuf;
+// 		uint64_t *lebuf = prebuf_le;
+// 		for (int i = 0; i < 409600; i+=8) {
+// 			bytes_to_littleend8_uint64(buf, lebuf);
+// 			*lebuf %= 4096;
+// 			lebuf++;
+// 			buf += 8;
+// 		}
+// 	}
+
+
+/*
+Belgarion said
+Mixrounds * n_blocks * 3 i think is total number of 64bit uints
+So 4 * 4096 * 3
+And then * 8 for bytes
+4 * 4096 * 3 * 8 = 393216 (=?= 409600)
+*/
+// 정확:  98304 * 4 = 393216
+// 대충: 102400 * 4 = 409600
+
+
+  uint8_t prebuf[98304];
+  uint64_t prebuf_le[98304 / 8];
+  uint8_t prebuf_filled = 0;
+  int hash_state_mix (struct hash_state *s, int32_t mixrounds) {
+  	if (!prebuf_filled) {
+  		bitstream_fill_buffer (&s->bstream, prebuf, 98304);
+  		prebuf_filled = 1;
+  		uint8_t *buf = prebuf;
+  		uint64_t *lebuf = prebuf_le;
+  		for (int i = 0; i < 98304; i+=8) {
+  			bytes_to_littleend8_uint64(buf, lebuf);
+  			*lebuf %= 4096;
+  			lebuf++;
+  			buf += 8;
+  		}
+  	}
+
+
+
 	uint64_t *buf = prebuf_le;
 	uint8_t *sbuf = s->buffer;
 
