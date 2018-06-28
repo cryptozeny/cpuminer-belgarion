@@ -65,7 +65,7 @@ int hash_state_free (struct hash_state *s);
 int hash_state_fill (struct hash_state *s, const uint8_t salt[SALT_LEN], const uint8_t *in, size_t inlen);
 int hash_state_mix (struct hash_state *s, int32_t mixrounds);
 int hash_state_extract (const struct hash_state *s, uint8_t out[BLOCK_SIZE]);
-void * block_index (const struct hash_state *s, size_t i); 
+void * block_index (const struct hash_state *s, size_t i);
 void * block_last (const struct hash_state *s);
 
 #ifdef __cplusplus
