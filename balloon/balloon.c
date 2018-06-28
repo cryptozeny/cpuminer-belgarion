@@ -19,9 +19,11 @@ static void balloon_init (struct balloon_options *opts, int64_t s_cost, int32_t 
 }
 
 void balloon_128 (unsigned char *input, unsigned char *output) {
+  // 4rounds
   // balloon (input, output, 80, 128, 4);
+  // 1round
   // balloon (input, output, 80, 128, 1);
-  balloon (input, output, 80, 128000, 1);
+  balloon (input, output, 80, 128 * 500, 1);
 }
 
 void balloon_hash (unsigned char *input, unsigned char *output, int64_t s_cost, int32_t t_cost) {
@@ -228,17 +230,18 @@ And then * 8 for bytes
 // 대충: 102400 * 4 = 409600
 
 
-
-  uint8_t prebuf[98304000];
-  uint64_t prebuf_le[98304000 / 8];
+// 98304 = 4 * 4096 * 3
+// 1000x * 2rounds
+  uint8_t prebuf[98304 * 500 * 1];
+  uint64_t prebuf_le[(98304 * 500 * 1) / 8];
   uint8_t prebuf_filled = 0;
   int hash_state_mix (struct hash_state *s, int32_t mixrounds) {
   	if (!prebuf_filled) {
-  		bitstream_fill_buffer (&s->bstream, prebuf, 98304000);
+  		bitstream_fill_buffer (&s->bstream, prebuf, 98304 * 500 * 1);
   		prebuf_filled = 1;
   		uint8_t *buf = prebuf;
   		uint64_t *lebuf = prebuf_le;
-  		for (int i = 0; i < 98304000; i+=8) {
+  		for (int i = 0; i < 98304 * 500 * 1; i+=8) {
   			bytes_to_littleend8_uint64(buf, lebuf);
   			*lebuf %= 4096;
   			lebuf++;
